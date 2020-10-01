@@ -14,6 +14,8 @@ import android.location.LocationManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.telephony.CarrierConfigManager
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.loader.app.LoaderManager
@@ -36,9 +38,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var locationManager: LocationManager
     lateinit var database: SQLiteDatabase
 
-    var locationName=""
-    var locationLat=0.0
-    var locationLon=0.0
+    var locationName = ""
+    var locationLat = 0.0
+    var locationLon = 0.0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,36 +73,38 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
 
 
+        var locationIntent = intent
+        var locationId = locationIntent.getIntExtra("locationId", 1)
+        var info = locationIntent.getStringExtra("info")
 
-        var locationIntent=intent
-        var locationId=locationIntent.getIntExtra("locationId",1)
-        var info=locationIntent.getStringExtra("info")
+        if (info == "old") {
 
-        if(info=="old"){
+            println("locaint: " + locationId)
 
-            println("locaint: "+ locationId)
+            database = this.openOrCreateDatabase("TravelBook", Context.MODE_PRIVATE, null)
+            var cursor = database.rawQuery(
+                "SELECT * FROM travelbook WHERE id=?",
+                arrayOf(locationId.toString())
+            )
+            val locationNameIx = cursor.getColumnIndex("locationname")
+            val locationlatIx = cursor.getColumnIndex("locationlat")
+            val locationlonIx = cursor.getColumnIndex("locationlon")
 
-            database=this.openOrCreateDatabase("TravelBook",Context.MODE_PRIVATE,null)
-            var cursor=database.rawQuery("SELECT * FROM travelbook WHERE id=?", arrayOf(locationId.toString()))
-            val locationNameIx=cursor.getColumnIndex("locationname")
-            val locationlatIx=cursor.getColumnIndex("locationlat")
-            val locationlonIx=cursor.getColumnIndex("locationlon")
 
-
-            while (cursor.moveToNext()){
-                locationName=cursor.getString(locationNameIx)
-                locationLat= (cursor.getString(locationlatIx)).toDouble()
-                locationLon=(cursor.getString(locationlonIx)).toDouble()
+            while (cursor.moveToNext()) {
+                locationName = cursor.getString(locationNameIx)
+                locationLat = (cursor.getString(locationlatIx)).toDouble()
+                locationLon = (cursor.getString(locationlonIx)).toDouble()
             }
-            println("lat: "+locationLat+ "  lon: "+locationLon)
+            println("lat: " + locationLat + "  lon: " + locationLon)
             cursor.close()
             mMap.clear()
-            var selectedLocation=LatLng(locationLat,locationLon)
+            var selectedLocation = LatLng(locationLat, locationLon)
             mMap.addMarker(MarkerOptions().position(selectedLocation).title(locationName))
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLocation,25f))
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(selectedLocation, 25f))
 
 
-        }else{
+        } else {
             mMap.setOnMapLongClickListener(addMarkerOptions)
 
             //Kullanıcının mevcut konumu
@@ -141,16 +145,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                     1,
                     1f,
                     locationListener
-                )}
+                )
+            }
 
 
-
-
-
-
-
-
-        //İzin kontrolü
+            //İzin kontrolü
 
 
             //Son bulunulan konum
@@ -212,20 +211,31 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
                 mMap.clear()
                 mMap.addMarker(MarkerOptions().position(p0).title(adress))
-                var addLocationCursor =
-                    "INSERT INTO travelbook (locationname,locationlat,locationlon) VALUES (?,?,?)"
-                var addStatement = database.compileStatement(addLocationCursor)
-                addStatement.bindString(1, adress)
-                addStatement.bindString(2, p0.latitude.toString())
-                addStatement.bindString(3, p0.longitude.toString())
-                addStatement.execute()
+                var dialog= AlertDialog.Builder(this@MapsActivity)
+                    dialog.setTitle("Add Location?")
+                    dialog.setMessage("Are you sure Add ?")
+                    dialog.setPositiveButton("Yes"){dialog,i ->
+                        var addLocationCursor =
+                            "INSERT INTO travelbook (locationname,locationlat,locationlon) VALUES (?,?,?)"
+                        var addStatement = database.compileStatement(addLocationCursor)
+                        addStatement.bindString(1, adress)
+                        addStatement.bindString(2, p0.latitude.toString())
+                        addStatement.bindString(3, p0.longitude.toString())
+                        addStatement.execute()
+                        Toast.makeText(this@MapsActivity,"Selected Location Add $adress",Toast.LENGTH_LONG).show()
+
+                    }
+                    dialog.setNegativeButton("No"){dialog,i ->
+                        Toast.makeText(this@MapsActivity,"Select Location No Add $adress",Toast.LENGTH_LONG).show()
+                    }
+                dialog.show()
 
             }
         }
     }
 
     override fun onBackPressed() {
-        val backIntent= Intent (this,MainActivity::class.java)
+        val backIntent = Intent(this, MainActivity::class.java)
         backIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         startActivity(backIntent)
         super.onBackPressed()
